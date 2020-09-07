@@ -88,6 +88,7 @@ AudioDevice::AudioDevice() noexcept {
 	hr                 = m_audioClient->SetClientProperties(&audioProps);
 	Core::Log::Require(hr == S_OK, "Failed to set wasapi audio client properties");
 
+	m_frameSize    = waveFormatDevice->Format.nBlockAlign;
 	m_frameSamples = minPeriod;
 	hr             = m_audioClient->InitializeSharedAudioStream(AUDCLNT_STREAMFLAGS_EVENTCALLBACK, m_frameSamples,
                                                     &waveFormatDevice->Format, nullptr);
@@ -96,10 +97,18 @@ AudioDevice::AudioDevice() noexcept {
 	m_audioEvent = CreateEventA(nullptr, FALSE, FALSE, nullptr);
 	Core::Log::Require(m_audioEvent != NULL, "Failed to create an event to use with event driven wasapi");
 
-	m_audioClient->GetBufferSize(&m_bufferSize);
+	m_audioClient->GetBufferSize(&m_bufferFrames);
 
 	hr = m_audioClient->GetService(IID_IAudioRenderClient, (void**)&m_audioRenderClient);
 	Core::Log::Require(hr == S_OK && m_audioRenderClient, "Failed to create a wasapi render client");
+
+	// prime with silence
+	BYTE* buffer = nullptr;
+	hr           = m_audioRenderClient->GetBuffer(m_bufferFrames, &buffer);
+	Core::Log::Require(hr == S_OK, "Failed to get wasapi buffer");
+	memset(buffer, 0, m_bufferFrames * m_frameSize);
+	hr = m_audioRenderClient->ReleaseBuffer(m_bufferFrames, 0);
+	Core::Log::Require(hr == S_OK, "Failed to release wasapi buffer");
 }
 
 AudioDevice ::~AudioDevice() noexcept {
