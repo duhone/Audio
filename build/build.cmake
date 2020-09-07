@@ -9,6 +9,8 @@ set(PUBLIC_HDRS
 
 set(SRCS
     ${root}/src/AudioEngine.cpp
+    ${root}/src/Windows/AudioDevice.h
+    ${root}/src/Windows/AudioDevice.cpp
 )
 
 set(BUILD
@@ -30,6 +32,7 @@ target_include_directories(audio PUBLIC
 )
 target_include_directories(audio PRIVATE
 	"${root}/src"
+	"${root}/src/Windows"
 )		
 
 target_link_libraries(audio PUBLIC
