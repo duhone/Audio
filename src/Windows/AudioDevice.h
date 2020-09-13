@@ -4,6 +4,7 @@
 #include <audioclient.h>
 
 #include <cstdint>
+#include <memory>
 
 namespace CR::Audio {
 	class AudioDevice {
@@ -17,11 +18,6 @@ namespace CR::Audio {
 		AudioDevice& operator=(AudioDevice&&) = delete;
 
 	  private:
-		CComPtr<IAudioClient3> m_audioClient;
-		CComPtr<IAudioRenderClient> m_audioRenderClient;
-		uint32_t m_frameSamples = 0;
-		uint32_t m_bufferFrames = 0;
-		uint32_t m_frameSize    = 0;
-		HANDLE m_audioEvent;
+		std::unique_ptr<class AudioDeviceImpl> m_pimpl;
 	};
 }    // namespace CR::Audio

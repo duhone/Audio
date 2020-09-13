@@ -67,6 +67,7 @@ target_link_libraries(audio_tests
 	core
 	platform
 	audio
+	Rtworkq.lib
 )
 
 add_dependencies(audio_tests AudioProcessor)
