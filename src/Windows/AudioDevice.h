@@ -1,16 +1,12 @@
 ﻿#pragma once
 
-#include <atlbase.h>
-#include <audioclient.h>
-
-#include <cstdint>
 #include <memory>
 
 namespace CR::Audio {
 	class AudioDevice {
 	  public:
-		AudioDevice() noexcept;
-		~AudioDevice() noexcept;
+		AudioDevice();
+		~AudioDevice();
 
 		AudioDevice(const AudioDevice&) = delete;
 		AudioDevice(AudioDevice&&)      = delete;

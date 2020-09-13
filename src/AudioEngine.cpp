@@ -18,5 +18,5 @@ void Audio::EngineStart() {
 }
 
 void Audio::EngineStop() {
-	GetDevice().release();
+	GetDevice().reset();
 }
