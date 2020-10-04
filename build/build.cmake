@@ -10,6 +10,11 @@ set(PUBLIC_HDRS
 set(SRCS
     ${root}/src/AudioEngine.cpp
     ${root}/src/Constants.h
+    ${root}/src/OutputConversion.h
+    ${root}/src/OutputConversion.cpp
+    ${root}/src/Sample.h
+    ${root}/src/TestTone.h
+    ${root}/src/TestTone.cpp
     ${root}/src/Windows/AudioDevice.h
     ${root}/src/Windows/AudioDevice.cpp
 )

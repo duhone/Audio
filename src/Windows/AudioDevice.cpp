@@ -26,7 +26,7 @@ const IID IID_IAudioRenderClient     = __uuidof(IAudioRenderClient);
 namespace CR::Audio {
 	class AudioDeviceImpl : public IRtwqAsyncCallback {
 	  public:
-		AudioDeviceImpl();
+		AudioDeviceImpl(AudioDevice::DeviceCallback_t a_callback);
 		virtual ~AudioDeviceImpl();
 
 		AudioDeviceImpl(const AudioDeviceImpl&) = delete;
@@ -43,29 +43,26 @@ namespace CR::Audio {
 
 		void PutWorkItem();
 
-	  private:
 		CComPtr<IAudioClient3> m_audioClient;
 		CComPtr<IAudioRenderClient> m_audioRenderClient;
 		uint32_t m_frameSamples = 0;
 		uint32_t m_bufferFrames = 0;
 		uint32_t m_frameSize    = 0;
+		uint32_t m_channels     = 0;
 		HANDLE m_audioEvent;
 
 		DWORD m_rtWorkQueueId = 0;
 
-		std::atomic<uint64_t> m_rtWorkItemKey  = 0;
-		std::atomic_bool m_finish              = false;
-		std::atomic_bool m_finished            = false;
-		std::atomic_uint32_t m_finalFramesLeft = 4;
+		std::atomic<uint64_t> m_rtWorkItemKey = 0;
+		std::atomic_bool m_finish             = false;
+		std::atomic_bool m_finished           = false;
+		std::atomic_int32_t m_finalFramesLeft = 4;
 
-		std::atomic_bool m_firstMix = true;
-
-		// TODO: temp testing code
-		uint32_t m_currentSample = 0;
+		AudioDevice::DeviceCallback_t m_callback;
 	};
 }    // namespace CR::Audio
 
-AudioDeviceImpl::AudioDeviceImpl() {
+AudioDeviceImpl::AudioDeviceImpl(AudioDevice::DeviceCallback_t a_callback) : m_callback(std::move(a_callback)) {
 	HRESULT hr = CoInitialize(nullptr);
 	Core::Log::Require(hr == S_OK, "Failed to initialize com for audio");
 
@@ -147,6 +144,7 @@ AudioDeviceImpl::AudioDeviceImpl() {
 
 	m_frameSize    = waveFormatDevice->Format.nBlockAlign;
 	m_frameSamples = minPeriod;
+	m_channels     = waveFormatDevice->Format.nChannels;
 	hr             = m_audioClient->InitializeSharedAudioStream(AUDCLNT_STREAMFLAGS_EVENTCALLBACK, m_frameSamples,
                                                     &waveFormatDevice->Format, nullptr);
 	Core::Log::Require(hr == S_OK, "Failed to set initialize wasapi audio stream");
@@ -209,7 +207,9 @@ STDMETHODIMP AudioDeviceImpl::GetParameters(DWORD* a_flags, DWORD* a_queue) {
 }
 
 STDMETHODIMP AudioDeviceImpl::Invoke(IRtwqAsyncResult*) {
-	// Core::Log::Info("Invoked!!!!");
+	Core::Log::Require(m_finished.load(std::memory_order_acquire) != true,
+	                   "Should never have a work item queued, if the device is already finsished");
+
 	HRESULT hr;
 
 	uint32_t padding;
@@ -222,41 +222,28 @@ STDMETHODIMP AudioDeviceImpl::Invoke(IRtwqAsyncResult*) {
 	hr            = m_audioRenderClient->GetBuffer(numFrames, (BYTE**)&buffer);
 	Core::Log::Require(hr == S_OK, "Failed to get wasapi buffer");
 
-	bool finish         = m_finish.load(std::memory_order_acquire);
-	uint32_t framesLeft = 0;
+	bool finish = m_finish.load(std::memory_order_acquire);
 
-	bool fadein = m_firstMix.load(std::memory_order_acquire);
-	if(fadein) { m_firstMix.store(false, std::memory_order_release); }
-	bool fadeout = finish;
+	bool fillSilence = m_callback(Core::Span<float>{buffer, numFrames}, finish);
+	if(fillSilence) {
+		hr = m_audioRenderClient->ReleaseBuffer(numFrames, AUDCLNT_BUFFERFLAGS_SILENT);
+		Core::Log::Require(hr == S_OK, "Failed to release wasapi buffer");
 
-	bool fillSilence = false;
-	if(finish) {
-		framesLeft = m_finalFramesLeft.load(std::memory_order_acquire);
-		if(framesLeft > 0) { m_finalFramesLeft.store(framesLeft - 1, std::memory_order_release); }
-		if(framesLeft <= 3) { fillSilence = true; }
-	}
-
-	// TODO: temporary test tone.
-	for(uint32_t frame = 0; frame < numFrames; ++frame) {
-		float value = sin((6.28f * m_currentSample) / 96.0f);
-
-		if(fadein) { value *= (float)frame / numFrames; }
-		if(fadeout) { value *= (float)(numFrames - frame) / numFrames; }
-		if(fillSilence) { value = 0.0f; }
-
-		buffer[2 * frame + 0] = value;
-		buffer[2 * frame + 1] = value;
-		++m_currentSample;
-	}
-
-	hr = m_audioRenderClient->ReleaseBuffer(numFrames, 0);
-	Core::Log::Require(hr == S_OK, "Failed to release wasapi buffer");
-
-	if(finish && framesLeft == 0) {
-		m_finished.store(true, std::memory_order_release);
 	} else {
-		PutWorkItem();
+		hr = m_audioRenderClient->ReleaseBuffer(numFrames, 0);
+		Core::Log::Require(hr == S_OK, "Failed to release wasapi buffer");
 	}
+
+	bool finished = m_finished.load(std::memory_order_acquire);
+	if(finish && fillSilence && !finished) {
+		uint32_t framesLeft = framesLeft = m_finalFramesLeft.fetch_add(-1);
+		if(finish && framesLeft == 0) {
+			m_finished.store(true, std::memory_order_release);
+			finished = true;
+		}
+	}
+
+	if(!finished) { PutWorkItem(); }
 
 	return S_OK;
 }
@@ -273,8 +260,12 @@ void AudioDeviceImpl::PutWorkItem() {
 	Core::Log::Require(hr == S_OK, "Failed to put a work item to real time work queue for audio");
 }
 
-AudioDevice::AudioDevice() {
-	m_pimpl = std::make_unique<AudioDeviceImpl>();
+AudioDevice::AudioDevice(AudioDevice::DeviceCallback_t a_callback) {
+	m_pimpl = std::make_unique<AudioDeviceImpl>(std::move(a_callback));
 }
 
 AudioDevice::~AudioDevice() {}
+
+int32_t AudioDevice::GetNumChannels() const {
+	return m_pimpl->m_channels;
+}
