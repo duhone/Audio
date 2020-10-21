@@ -49,6 +49,7 @@ namespace CR::Audio {
 		uint32_t m_bufferFrames = 0;
 		uint32_t m_frameSize    = 0;
 		uint32_t m_channels     = 0;
+		uint32_t m_sampleRate   = 0;
 		HANDLE m_audioEvent;
 
 		DWORD m_rtWorkQueueId = 0;
@@ -145,6 +146,7 @@ AudioDeviceImpl::AudioDeviceImpl(AudioDevice::DeviceCallback_t a_callback) : m_c
 	m_frameSize    = waveFormatDevice->Format.nBlockAlign;
 	m_frameSamples = minPeriod;
 	m_channels     = waveFormatDevice->Format.nChannels;
+	m_sampleRate   = waveFormatDevice->Format.nSamplesPerSec;
 	hr             = m_audioClient->InitializeSharedAudioStream(AUDCLNT_STREAMFLAGS_EVENTCALLBACK, m_frameSamples,
                                                     &waveFormatDevice->Format, nullptr);
 	Core::Log::Require(hr == S_OK, "Failed to set initialize wasapi audio stream");
@@ -224,7 +226,7 @@ STDMETHODIMP AudioDeviceImpl::Invoke(IRtwqAsyncResult*) {
 
 	bool finish = m_finish.load(std::memory_order_acquire);
 
-	bool fillSilence = m_callback(Core::Span<float>{buffer, numFrames}, finish);
+	bool fillSilence = m_callback(Core::Span<float>{buffer, numFrames * m_channels}, m_channels, m_sampleRate, finish);
 	if(fillSilence) {
 		hr = m_audioRenderClient->ReleaseBuffer(numFrames, AUDCLNT_BUFFERFLAGS_SILENT);
 		Core::Log::Require(hr == S_OK, "Failed to release wasapi buffer");
@@ -265,7 +267,3 @@ AudioDevice::AudioDevice(AudioDevice::DeviceCallback_t a_callback) {
 }
 
 AudioDevice::~AudioDevice() {}
-
-int32_t AudioDevice::GetNumChannels() const {
-	return m_pimpl->m_channels;
-}
