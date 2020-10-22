@@ -46,6 +46,7 @@ target_link_libraries(audio PUBLIC
     robinmap
     core
     function2
+	samplerate
 )
 					
 ###############################################
@@ -74,6 +75,7 @@ target_link_libraries(audio_tests
 	platform
 	audio
 	Rtworkq.lib
+	samplerate
 )
 
 add_dependencies(audio_tests AudioProcessor)

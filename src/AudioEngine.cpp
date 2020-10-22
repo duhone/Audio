@@ -2,6 +2,7 @@
 
 #include "AudioDevice.h"
 #include "Constants.h"
+#include "OutputConversion.h"
 #include "Sample.h"
 #include "TestTone.h"
 
@@ -21,6 +22,8 @@ namespace {
 		// Holds audio after main buffer conversion to device sample rate, if needed
 		std::vector<Sample> m_deviceSampleBuffer;
 		TestTone m_testTone{1000.0f};
+
+		OutputConversion m_outputConversion;
 	};
 	Engine& GetEngine() {
 		static Engine s_engine;
