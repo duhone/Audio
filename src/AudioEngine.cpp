@@ -40,7 +40,9 @@ bool Engine::Mix(Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_s
 	if(a_sampleRate == c_mixSampleRate) {
 		resampleBuffer = {m_mixBuffer.data(), m_mixBuffer.size()};
 	} else {
-		Core::Log::Error("not implemented");
+		m_deviceSampleBuffer.resize(m_mixBuffer.size() * (a_sampleRate / c_mixSampleRate));
+		resampleBuffer = {m_deviceSampleBuffer.data(), m_deviceSampleBuffer.size()};
+		m_outputConversion.ConvertSampleRate(a_sampleRate, {m_mixBuffer.data(), m_mixBuffer.size()}, resampleBuffer);
 	}
 
 	Core::Span<float> deviceChannelBuffer;
