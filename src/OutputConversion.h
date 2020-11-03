@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <ChannelWeights.h>
 #include <Sample.h>
 
 #include <core/Span.h>
@@ -21,6 +22,10 @@ namespace CR::Audio {
 
 		void ConvertSampleRate(int32_t a_deviceSampleRate, Core::Span<const Sample> a_input,
 		                       Core::Span<Sample> a_output);
+
+		// a_output must have a_weights.size() entries per Sample in a_input.
+		void ConvertChannelCount(const Core::Span<Sample> a_input, Core::Span<float> a_output,
+		                         const std::vector<ChannelWeights>& a_weights) const;
 
 	  private:
 		SRC_STATE* m_srcState = nullptr;

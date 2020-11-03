@@ -42,3 +42,16 @@ void OutputConversion::ConvertSampleRate(int32_t a_deviceSampleRate, Core::Span<
 	}
 	m_firstFrame = false;
 }
+
+void OutputConversion::ConvertChannelCount(const Core::Span<Sample> a_input, Core::Span<float> a_output,
+                                           const std::vector<ChannelWeights>& a_weights) const {
+	Core::Log::Assert(a_weights.size() * a_input.size() == a_output.size(), "Invalid input to ConvertChannelCount");
+
+	int32_t inputStep = static_cast<int32_t>(a_weights.size());
+	for(int32_t sample = 0; sample < a_input.size(); ++sample) {
+		for(int32_t weight = 0; weight < inputStep; ++weight) {
+			a_output[sample * inputStep + weight] =
+			    a_weights[weight].Left * a_input[sample].Left + a_weights[weight].Right * a_input[sample].Right;
+		}
+	}
+}

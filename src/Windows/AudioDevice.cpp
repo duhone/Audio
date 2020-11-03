@@ -43,6 +43,9 @@ namespace CR::Audio {
 
 		void PutWorkItem();
 
+		void BuildChannelWeights(WAVEFORMATEXTENSIBLE* a_waveFormatDevice);
+		ChannelWeights NormalizeChannelWeight(const ChannelWeights a_weight);
+
 		CComPtr<IAudioClient3> m_audioClient;
 		CComPtr<IAudioRenderClient> m_audioRenderClient;
 		uint32_t m_frameSamples = 0;
@@ -60,6 +63,8 @@ namespace CR::Audio {
 		std::atomic_int32_t m_finalFramesLeft = 4;
 
 		AudioDevice::DeviceCallback_t m_callback;
+
+		std::vector<ChannelWeights> m_channelWeights;
 	};
 }    // namespace CR::Audio
 
@@ -115,18 +120,17 @@ AudioDeviceImpl::AudioDeviceImpl(AudioDevice::DeviceCallback_t a_callback) : m_c
 		}
 	}
 
-	if(waveFormatDevice->Format.nChannels != 2) { Core::Log::Error("Unsupported number of channels"); }
-	if((waveFormatDevice->Format.nSamplesPerSec % 48000) != 0) {
-		Core::Log::Error("Unsupported number of samples per second, require an even multiple of 48000");
+	if(waveFormatDevice->Format.wBitsPerSample != 32) {
+		Core::Log::Error("Unsupported number of bits per sample, must be float");
 	}
-	if(waveFormatDevice->Format.wBitsPerSample != 32) { Core::Log::Error("Unsupported number of bits per sample"); }
-	if(waveFormatDevice->Format.nChannels != 2) { Core::Log::Error("Unsupported number of channels"); }
 	if(waveFormatDevice->Format.wFormatTag != WAVE_FORMAT_EXTENSIBLE) {
 		Core::Log::Error("require support for float audio format");
 	}
 	if(waveFormatDevice->SubFormat != KSDATAFORMAT_SUBTYPE_IEEE_FLOAT) {
 		Core::Log::Error("require support for float audio format");
 	}
+
+	BuildChannelWeights(waveFormatDevice);
 
 	UINT32 defaultPeriod     = 0;
 	UINT32 fundamentalPeriod = 0;
@@ -226,7 +230,8 @@ STDMETHODIMP AudioDeviceImpl::Invoke(IRtwqAsyncResult*) {
 
 	bool finish = m_finish.load(std::memory_order_acquire);
 
-	bool fillSilence = m_callback(Core::Span<float>{buffer, numFrames * m_channels}, m_channels, m_sampleRate, finish);
+	bool fillSilence = m_callback(Core::Span<float>{buffer, numFrames * m_channels}, m_channels, m_sampleRate,
+	                              m_channelWeights, finish);
 	if(fillSilence) {
 		hr = m_audioRenderClient->ReleaseBuffer(numFrames, AUDCLNT_BUFFERFLAGS_SILENT);
 		Core::Log::Require(hr == S_OK, "Failed to release wasapi buffer");
@@ -260,6 +265,43 @@ void AudioDeviceImpl::PutWorkItem() {
 	hr = RtwqPutWaitingWorkItem(m_audioEvent, 1, asyncResult, &workItemKey);
 	m_rtWorkItemKey.store(workItemKey, std::memory_order_release);
 	Core::Log::Require(hr == S_OK, "Failed to put a work item to real time work queue for audio");
+}
+
+ChannelWeights AudioDeviceImpl::NormalizeChannelWeight(const ChannelWeights a_weight) {
+	ChannelWeights result = a_weight;
+	float invMagnitude    = 1.0f / sqrt(result.Left * result.Left + result.Right * result.Right);
+	result.Left *= invMagnitude;
+	result.Right *= invMagnitude;
+	return result;
+}
+
+void AudioDeviceImpl::BuildChannelWeights(WAVEFORMATEXTENSIBLE* a_waveFormatDevice) {
+	Core::Log::Assert(a_waveFormatDevice->Format.wFormatTag == WAVE_FORMAT_EXTENSIBLE, "Assume extensible wave format");
+	DWORD channelMask = a_waveFormatDevice->dwChannelMask;
+	// These must be checked/added in order they occur in windows header
+	// see https://docs.microsoft.com/en-us/windows/win32/api/mmreg/ns-mmreg-waveformatextensible
+	// for required order
+	if(channelMask & SPEAKER_FRONT_LEFT) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 0.0f})); }
+	if(channelMask & SPEAKER_FRONT_RIGHT) { m_channelWeights.push_back(NormalizeChannelWeight({0.0f, 1.0f})); }
+	if(channelMask & SPEAKER_FRONT_CENTER) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 1.0f})); }
+	// This one should really have a low pass filter applied as well
+	if(channelMask & SPEAKER_LOW_FREQUENCY) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 1.0f})); }
+	if(channelMask & SPEAKER_BACK_LEFT) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 0.0f})); }
+	if(channelMask & SPEAKER_BACK_RIGHT) { m_channelWeights.push_back(NormalizeChannelWeight({0.0f, 1.0f})); }
+	if(channelMask & SPEAKER_FRONT_LEFT_OF_CENTER) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 0.0f})); }
+	if(channelMask & SPEAKER_FRONT_RIGHT_OF_CENTER) {
+		m_channelWeights.push_back(NormalizeChannelWeight({0.0f, 1.0f}));
+	}
+	if(channelMask & SPEAKER_BACK_CENTER) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 1.0f})); }
+	if(channelMask & SPEAKER_SIDE_LEFT) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 0.0f})); }
+	if(channelMask & SPEAKER_SIDE_RIGHT) { m_channelWeights.push_back(NormalizeChannelWeight({0.0f, 1.0f})); }
+	if(channelMask & SPEAKER_TOP_CENTER) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 1.0f})); }
+	if(channelMask & SPEAKER_TOP_FRONT_LEFT) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 0.0f})); }
+	if(channelMask & SPEAKER_TOP_FRONT_CENTER) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 1.0f})); }
+	if(channelMask & SPEAKER_TOP_FRONT_RIGHT) { m_channelWeights.push_back(NormalizeChannelWeight({0.0f, 1.0f})); }
+	if(channelMask & SPEAKER_TOP_BACK_LEFT) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 0.0f})); }
+	if(channelMask & SPEAKER_TOP_BACK_CENTER) { m_channelWeights.push_back(NormalizeChannelWeight({1.0f, 1.0f})); }
+	if(channelMask & SPEAKER_TOP_BACK_RIGHT) { m_channelWeights.push_back(NormalizeChannelWeight({0.0f, 1.0f})); }
 }
 
 AudioDevice::AudioDevice(AudioDevice::DeviceCallback_t a_callback) {

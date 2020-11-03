@@ -15,12 +15,14 @@ using namespace CR::Audio;
 
 namespace {
 	struct Engine {
-		bool Mix(Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_sampleRate, bool a_closing);
+		bool Mix(Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_sampleRate,
+		         const std::vector<ChannelWeights> a_weights, bool a_closing);
 
 		std::unique_ptr<AudioDevice> m_device;
 		std::vector<Sample> m_mixBuffer;
 		// Holds audio after main buffer conversion to device sample rate, if needed
 		std::vector<Sample> m_deviceSampleBuffer;
+		std::vector<float> m_deviceChannelBuffer;
 		TestTone m_testTone{1000.0f};
 
 		OutputConversion m_outputConversion;
@@ -31,7 +33,8 @@ namespace {
 	}
 }    // namespace
 
-bool Engine::Mix(Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_sampleRate, bool a_closing) {
+bool Engine::Mix(Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_sampleRate,
+                 const std::vector<ChannelWeights> a_weights, bool a_closing) {
 	int32_t mixBufferSize = static_cast<int32_t>((a_buffer.size() * c_mixSampleRate) / (a_sampleRate * a_numChannels));
 	m_mixBuffer.resize(mixBufferSize);
 	m_testTone.Mix({m_mixBuffer.data(), m_mixBuffer.size()});
@@ -49,7 +52,9 @@ bool Engine::Mix(Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_s
 	if(a_numChannels == c_mixChannels) {
 		deviceChannelBuffer = {(float*)resampleBuffer.data(), resampleBuffer.size() * c_mixChannels};
 	} else {
-		Core::Log::Error("not implemented");
+		m_deviceChannelBuffer.resize(resampleBuffer.size() * a_numChannels);
+		deviceChannelBuffer = {m_deviceChannelBuffer.data(), m_deviceChannelBuffer.size()};
+		m_outputConversion.ConvertChannelCount(resampleBuffer, deviceChannelBuffer, a_weights);
 	}
 
 	Core::Log::Require(deviceChannelBuffer.size() == a_buffer.size(),
@@ -68,9 +73,9 @@ void Audio::EngineStart() {
 	Engine& engine = GetEngine();
 
 	engine.m_device = std::make_unique<AudioDevice>(
-	    [&engine](Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_sampleRate, bool a_closing) {
-		    return engine.Mix(a_buffer, a_numChannels, a_sampleRate, a_closing);
-	    });
+	    [&engine](Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_sampleRate,
+	              const std::vector<ChannelWeights> a_weights,
+	              bool a_closing) { return engine.Mix(a_buffer, a_numChannels, a_sampleRate, a_weights, a_closing); });
 }
 
 void Audio::EngineStop() {
