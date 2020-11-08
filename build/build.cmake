@@ -5,11 +5,14 @@ set(root "${CMAKE_CURRENT_LIST_DIR}/..")
 ###############################################
 set(PUBLIC_HDRS
     ${root}/inc/Audio/AudioEngine.h
+    ${root}/inc/Audio/Mixer.h
 )
 
 set(SRCS
     ${root}/src/AudioEngine.cpp
     ${root}/src/Constants.h
+    ${root}/src/MixerSystem.h
+    ${root}/src/MixerSystem.cpp
     ${root}/src/OutputConversion.h
     ${root}/src/OutputConversion.cpp
     ${root}/src/Sample.h

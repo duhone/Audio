@@ -2,6 +2,7 @@
 
 #include "AudioDevice.h"
 #include "Constants.h"
+#include "MixerSystem.h"
 #include "OutputConversion.h"
 #include "Sample.h"
 #include "TestTone.h"
@@ -26,6 +27,9 @@ namespace {
 		TestTone m_testTone{1000.0f};
 
 		OutputConversion m_outputConversion;
+
+		MixerSystem m_mixerSystem;
+		Mixer m_masterMix;
 	};
 	Engine& GetEngine() {
 		static Engine s_engine;
@@ -71,6 +75,8 @@ bool Engine::Mix(Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_s
 
 void Audio::EngineStart() {
 	Engine& engine = GetEngine();
+
+	engine.m_masterMix = engine.m_mixerSystem.CreateMixer();
 
 	engine.m_device = std::make_unique<AudioDevice>(
 	    [&engine](Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_sampleRate,
