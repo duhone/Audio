@@ -2,16 +2,16 @@
 
 using namespace CR;
 
-[[nodiscard]] Audio::Mixer Audio::MixerSystem::CreateMixer() {
-	return Mixer{};
+[[nodiscard]] Audio::MixerHandle Audio::MixerSystem::CreateMixer() {
+	return MixerHandle{};
 }
 
 // Handle class
 
-Audio::Mixer::~Mixer() {}
+Audio::MixerHandle::~MixerHandle() {}
 
-Audio::Mixer& Audio::Mixer::operator=(Audio::Mixer&& a_other) noexcept {
-	if(m_id >= 0) { this->~Mixer(); }
+Audio::MixerHandle& Audio::MixerHandle::operator=(Audio::MixerHandle&& a_other) noexcept {
+	if(m_id >= 0) { this->~MixerHandle(); }
 
 	m_id     = a_other.m_id;
 	m_system = a_other.m_system;

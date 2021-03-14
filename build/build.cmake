@@ -5,12 +5,17 @@ set(root "${CMAKE_CURRENT_LIST_DIR}/..")
 ###############################################
 set(PUBLIC_HDRS
     ${root}/inc/Audio/AudioEngine.h
-    ${root}/inc/Audio/Mixer.h
+    ${root}/inc/Audio/AudioSet.h
+    ${root}/inc/Audio/MixerHandle.h
 )
 
 set(SRCS
     ${root}/src/AudioEngine.cpp
+    ${root}/src/AudioSets.h
+    ${root}/src/AudioSets.cpp
     ${root}/src/Constants.h
+    ${root}/src/Mixer.h
+    ${root}/src/Mixer.cpp
     ${root}/src/MixerSystem.h
     ${root}/src/MixerSystem.cpp
     ${root}/src/OutputConversion.h
@@ -49,6 +54,7 @@ target_link_libraries(audio PUBLIC
     robinmap
     core
     function2
+	opus
 	samplerate
 )
 					

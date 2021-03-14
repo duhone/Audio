@@ -1,6 +1,10 @@
 ﻿#pragma once
 
-#include <Audio/Mixer.h>
+#include <Audio/MixerHandle.h>
+
+#include <Mixer.h>
+
+#include <bitset>
 
 namespace CR::Audio {
 	class MixerSystem {
@@ -14,8 +18,12 @@ namespace CR::Audio {
 		MixerSystem& operator=(const MixerSystem&) = delete;
 		MixerSystem& operator=(MixerSystem&&) = delete;
 
-		[[nodiscard]] Mixer CreateMixer();
+		[[nodiscard]] MixerHandle CreateMixer();
 
 	  private:
+		constexpr static int32_t c_maxMixers = 16;
+
+		std::bitset<c_maxMixers> m_used;
+		Mixer m_mixers[c_maxMixers];
 	};
 }    // namespace CR::Audio

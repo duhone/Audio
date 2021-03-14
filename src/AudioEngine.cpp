@@ -1,5 +1,7 @@
 ﻿#include "Audio/AudioEngine.h"
 
+#include <Audio/MixerHandle.h>
+
 #include "AudioDevice.h"
 #include "Constants.h"
 #include "MixerSystem.h"
@@ -29,7 +31,7 @@ namespace {
 		OutputConversion m_outputConversion;
 
 		MixerSystem m_mixerSystem;
-		Mixer m_masterMix;
+		MixerHandle m_masterMix;
 	};
 	Engine& GetEngine() {
 		static Engine s_engine;
@@ -41,7 +43,7 @@ bool Engine::Mix(Core::Span<float>& a_buffer, int32_t a_numChannels, int32_t a_s
                  const std::vector<ChannelWeights> a_weights, bool a_closing) {
 	int32_t mixBufferSize = static_cast<int32_t>((a_buffer.size() * c_mixSampleRate) / (a_sampleRate * a_numChannels));
 	m_mixBuffer.resize(mixBufferSize);
-	m_testTone.Mix({m_mixBuffer.data(), m_mixBuffer.size()});
+	// m_testTone.Mix({m_mixBuffer.data(), m_mixBuffer.size()});
 
 	Core::Span<Sample> resampleBuffer;
 	if(a_sampleRate == c_mixSampleRate) {

@@ -4,6 +4,7 @@
 
 #include <core/Span.h>
 
+#include <array>
 #include <cstdint>
 
 namespace CR::Audio {
@@ -11,10 +12,10 @@ namespace CR::Audio {
 	  public:
 		TestTone(float a_frequency) : m_frequency(a_frequency) {}
 
-		void Mix(Core::Span<Sample> a_buffer);
+		[[nodiscard]] Core::Span<Sample> GetSamples(uint32_t& a_currentSample, uint32_t a_numSamples);
 
 	  private:
-		float m_frequency        = 0.0f;
-		uint32_t m_currentSample = 0;
+		float m_frequency = 0.0f;
+		std::vector<Sample> m_buffer;
 	};
 }    // namespace CR::Audio
